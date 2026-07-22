@@ -1,0 +1,23 @@
+{
+  "name": "kea",
+  "description": "da KEWLEST discord mod (not a lie)",
+  "version": "1.0.0",
+  "main": "dist/inject.js",
+  "scripts": {
+      "build": "tsup",
+      "install-kea": "pnpm build && node dist/install.js"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.15.1",
+      "onFail": "download"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "electron": "^43.1.1",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2"
+  }
+}
