@@ -1,3 +1,4 @@
+// tsdown.config.ts
 import { defineConfig } from "tsdown";
 
 export default defineConfig([
@@ -19,6 +20,10 @@ export default defineConfig([
 		outExtensions: () => ({ js: ".js" }),
 		target: "node16",
 		outDir: "dist",
+		define: {
+			"process.env.NODE_ENV": JSON.stringify("production"),
+			"process.env": "{}",
+		},
 		dts: false,
 	},
 	{

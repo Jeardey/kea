@@ -1,11 +1,13 @@
 {
 	"name": "kea",
 	"description": "da KEWLEST discord mod (not a lie)",
+	"author": "mesanets",
+	"license": "GPL-3.0-only",
 	"version": "1.0.0",
 	"main": "dist/inject.js",
 	"scripts": {
 		"build": "tsdown",
-		"install-kea": "pnpm build && node dist/install.js",
+		"inject": "pnpm build && node dist/install.js",
 		"lint:check": "biome check .",
 		"lint:format": "biome format --write .",
 		"lint:fix": "biome check --write --unsafe ."
@@ -17,10 +19,15 @@
 			"onFail": "download"
 		}
 	},
+	"dependencies": {
+		"@kea/dtypes": "workspace:*"
+	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.5",
 		"@types/node": "^26.1.1",
+		"@types/react": "^19.2.17",
 		"electron": "^43.1.1",
+		"react": "^19.2.8",
 		"tsdown": "^0.22.13",
 		"typescript": "^7.0.2",
 		"unrun": "^0.3.1"
