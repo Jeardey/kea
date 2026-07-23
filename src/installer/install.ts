@@ -49,11 +49,13 @@ function findDistAsset(filename: string): string {
 }
 
 // copy the newly bundled kea files to the appdata folder
-const injectorSrc = findDistAsset("inject.js");
-const rendererSrc = findDistAsset("kea-renderer.js");
-
-fs.copyFileSync(injectorSrc, path.join(keaDir, "inject.js"));
-fs.copyFileSync(rendererSrc, path.join(keaDir, "kea-renderer.js"));
+const distDir = path.dirname(findDistAsset("inject.js"));
+for (const file of fs.readdirSync(distDir)) {
+    const srcPath = path.join(distDir, file);
+    if (fs.statSync(srcPath).isFile()) {
+        fs.copyFileSync(srcPath, path.join(keaDir, file));
+    }
+}
 console.log(`[installer] successfully copied kea assets to appdata: ${keaDir}`);
 
 // find discord installation
