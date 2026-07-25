@@ -8,6 +8,8 @@
 	"scripts": {
 		"build": "tsdown",
 		"inject": "pnpm build && node dist/install.js",
+		"gui": "pnpm build && electron dist/gui/main.js",
+		"typecheck": "tsc --noEmit",
 		"lint:check": "biome check .",
 		"lint:format": "echo 'currently disabled'",
 		"lint:fix": "echo 'currently disabled'"
