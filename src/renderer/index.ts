@@ -41,10 +41,7 @@ if (!(window as any).__kea_injected) {
 		};
 
 		const origOpen = XMLHttpRequest.prototype.open;
-		(XMLHttpRequest.prototype as any).open = function (
-			this: XMLHttpRequest,
-			...args: any[]
-		) {
+		(XMLHttpRequest.prototype as any).open = function (this: XMLHttpRequest, ...args: any[]) {
 			try {
 				const urlObj = args[1];
 				const url =
