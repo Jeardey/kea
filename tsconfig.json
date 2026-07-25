@@ -1,10 +1,9 @@
 {
     // Visit https://aka.ms/tsconfig to read more about this file
     "compilerOptions": {
-        "baseUrl": ".",
         "paths": {
-            "@extensions": ["src/extensions/index.ts"],
-            "@extensions/*": ["src/extensions/*"]
+            "@extensions": ["./src/extensions/index.ts"],
+            "@extensions/*": ["./src/extensions/*"]
         },
         "outDir": "./dist",
         "module": "esnext",
