@@ -21,8 +21,8 @@ app.once("ready", () => {
 app.on("browser-window-created", (_e, win) => {
     const rendererPath = path.join(__dirname, "kea-renderer.js");
 
-    if (fs.existsSync(rendererPath)) {
-        const rendererScript = fs.readFileSync(rendererPath, "utf-8");
+	if (fs.existsSync(rendererPath)) {
+		const rendererScript = fs.readFileSync(rendererPath, "utf-8");
 
         win.webContents.on("did-start-navigation", () => {
             win.webContents.executeJavaScript(rendererScript).catch(() => {});
