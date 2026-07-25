@@ -6,8 +6,8 @@
 
 Kea is yet another Discord client mod.
 
-# Installation
+## Installation
 TODO
 
-# Contributing
+## Contributing
 If you would like to contribute to Kea or create extensions, please check out our [contributing guide](CONTRIBUTING.md)!
