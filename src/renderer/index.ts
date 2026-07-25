@@ -6,12 +6,16 @@ if (
     (window as any).process = { env: { NODE_ENV: "production" } };
 }
 
+import { ExtensionManager } from "@extensions/index";
+import { Logger } from "../renderer/utils/logger";
 import { Patcher } from "./patcher";
 import { WebpackPatcher } from "./patcher/webpack";
 import { SettingsUI } from "./ui/settings";
 import { WebpackFinder } from "./webpack/finder";
 import { MappingGenerator } from "./webpack/generator";
 import { Stores } from "./webpack/stores";
+
+const logger = new Logger("Renderer", "#3b82f6");
 
 declare global {
     interface Window {
@@ -20,6 +24,7 @@ declare global {
             MappingGenerator: typeof MappingGenerator;
             Stores: typeof Stores;
             Patcher: typeof Patcher;
+            ExtensionManager: typeof ExtensionManager;
         };
     }
 }
@@ -31,7 +36,10 @@ if (!(window as any).__kea_injected) {
         MappingGenerator,
         Stores,
         Patcher,
+        ExtensionManager,
     };
+
+    // TODO: move all killSentry, blockTelemetryNetwork and etc functions to separate file
     function killSentry(): void {
         Object.defineProperty(Function.prototype, "d", {
             configurable: true,
@@ -60,9 +68,9 @@ if (!(window as any).__kea_injected) {
                     srcRequest.send();
 
                     if (srcRequest.responseText.includes(".DiscordSentry=")) {
-                        console.log(
-                            "%c[kea]%c Disabling Sentry Webpack instance!",
-                            "color: #ef4444; font-weight: bold;",
+                        logger.log(
+                            "Disabling Sentry Webpack instance!",
+                            "font-weight: bold;",
                             "color: inherit;",
                         );
                         Reflect.deleteProperty(Function.prototype, "d");
@@ -182,11 +190,21 @@ if (!(window as any).__kea_injected) {
     }
 
     async function hookFluxTrack(): Promise<void> {
-        const UserStore = await WebpackFinder.waitForStoreName("UserStore");
+        const UserStore = (await WebpackFinder.waitForStoreName(
+            "UserStore",
+        )) as {
+            _dispatcher?: {
+                subscribe?: (
+                    event: string,
+                    callback: (event: unknown) => void,
+                ) => void;
+            };
+        };
         const dispatcher = UserStore?._dispatcher;
         if (dispatcher?.subscribe) {
-            dispatcher.subscribe("TRACK", (event: any) => {
-                event?.resolve?.();
+            dispatcher.subscribe("TRACK", (event: unknown) => {
+                const record = event as { resolve?: () => void };
+                record?.resolve?.();
             });
         }
     }
@@ -194,25 +212,22 @@ if (!(window as any).__kea_injected) {
     killSentry();
     blockTelemetryNetwork();
     registerNoTrackPatches();
+    ExtensionManager.registerAll();
+
     async function bootKea() {
-        console.log(
-            "%c[kea] booting up...",
-            "color: #3b82f6; font-size: 16px; font-weight: bold;",
-        );
+        logger.log("Booting up...");
         try {
             await SettingsUI.init();
         } catch (e) {
-            console.error("[kea] failed to initialize SettingsUI:", e);
+            logger.error("Failed to initialize SettingsUI:", e);
         }
         try {
             await WebpackFinder.init();
-            console.log(
-                "%c[kea] successfully mapped webpack!",
-                "color: #10b981; font-weight: bold;",
-            );
+            logger.info("Successfully mapped webpack!");
         } catch (e) {
-            console.error("[kea] failed to initialize WebpackFinder:", e);
+            logger.error("Failed to initialize WebpackFinder:", e);
         }
+        ExtensionManager.init();
         hookFluxTrack().catch(() => {});
     }
 

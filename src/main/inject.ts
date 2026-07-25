@@ -1,8 +1,11 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { app, session } from "electron";
+import { Logger } from "../renderer/utils/logger";
 
-console.log("[kea] main process injector loaded");
+const logger = new Logger("Inject", "#10b981");
+
+logger.info("Main process injector loaded!");
 
 app.once("ready", () => {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -25,7 +28,7 @@ app.on("browser-window-created", (_e, win) => {
             win.webContents.executeJavaScript(rendererScript).catch(() => {});
         });
     } else {
-        console.error("[kea] could not find kea-renderer.js at", rendererPath);
+        logger.error("Could not find kea-renderer.js at", rendererPath);
     }
 });
 

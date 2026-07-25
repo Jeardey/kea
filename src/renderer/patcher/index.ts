@@ -1,3 +1,7 @@
+import { Logger } from "../utils/logger";
+
+const logger = new Logger("Patcher", "#10b981");
+
 export type PatchType = "before" | "after" | "instead";
 
 export interface Patch {
@@ -32,7 +36,7 @@ export class Patcher {
 			}
 
 			if (typeof original !== "function") {
-				throw new Error(`[kPatcher] target property '${key}' is not a function`);
+				throw new Error(`Target property '${key}' is not a function`);
 			}
 
 			const newEntry: PatchEntry = {
@@ -54,7 +58,7 @@ export class Patcher {
 						try {
 							(patch as any).callback.call(this, args);
 						} catch (e) {
-							console.error(`[kea] error in 'before' patch (${patch.caller}):`, e);
+							logger.error(`Error in 'before' patch (${patch.caller}):`, e);
 						}
 					}
 				}
@@ -65,7 +69,7 @@ export class Patcher {
 					try {
 						result = (insteadPatch as any).callback.call(this, args, original.bind(this));
 					} catch (e) {
-						console.error(`[kea] error in 'instead' patch (${insteadPatch.caller}):`, e);
+						logger.error(`Error in 'instead' patch (${insteadPatch.caller}):`, e);
 						result = original.apply(this, args);
 					}
 				} else {
@@ -80,7 +84,7 @@ export class Patcher {
 								result = override;
 							}
 						} catch (e) {
-							console.error(`[kea] error in 'after' patch (${patch.caller}):`, e);
+							logger.error(`Error in 'after' patch (${patch.caller}):`, e);
 						}
 					}
 				}
@@ -107,7 +111,7 @@ export class Patcher {
 					});
 				}
 			} catch (e) {
-				console.error(`[kea] failed to redefine property '${key}':`, e);
+				logger.error(`Failed to redefine property '${key}':`, e);
 			}
 		}
 

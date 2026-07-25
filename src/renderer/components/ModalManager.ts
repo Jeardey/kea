@@ -1,5 +1,8 @@
+import { Logger } from "../utils/logger";
 import { WebpackFinder } from "../webpack/finder";
 import { getReact } from "./utils";
+
+const logger = new Logger("ModalManager", "#10b981");
 
 let modalContainer: HTMLDivElement | null = null;
 let activeRoot: any = null;
@@ -50,7 +53,7 @@ export function openModal(
 ): void {
     const React = getReact();
     if (!React) {
-        console.error("[kea] cannot open modal: react instance not found");
+        logger.error("Cannot open modal: React instance not found");
         return;
     }
 
@@ -103,7 +106,7 @@ export function openModal(
     } else if (ReactDOMModule?.render) {
         ReactDOMModule.render(element, modalContainer);
     } else {
-        console.error("[kea] could not find ReactDOM to mount modal");
+        logger.error("Could not find ReactDOM to mount modal");
     }
 }
 

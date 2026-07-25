@@ -1,3 +1,5 @@
+import { ExtensionManager } from "@extensions/index";
+import type { Extension } from "@extensions/types";
 import {
     BaseText,
     Button,
@@ -10,11 +12,12 @@ import {
     TextInput,
 } from "../../components";
 import { getReact } from "../../components/utils";
+import { Logger } from "../../utils/logger";
+
+const logger = new Logger("SettingsPanel", "#10b981");
 
 function TestModalComponent({ onClose }: { onClose: () => void }) {
     const React = getReact();
-    if (!React) return null;
-
     const [inputValue, setInputValue] = React.useState("");
 
     return React.createElement(
@@ -85,7 +88,7 @@ function TestModalComponent({ onClose }: { onClose: () => void }) {
                     text: "Action Primary",
                     variant: "primary",
                     onClick: () => {
-                        console.log("[kea] saved:", inputValue);
+                        logger.log("Saved:", inputValue);
                         onClose();
                     },
                 },
@@ -93,24 +96,43 @@ function TestModalComponent({ onClose }: { onClose: () => void }) {
                     text: "Action Danger",
                     variant: "critical-primary",
                     onClick: () => {
-                        console.log("[kea] cancelled");
+                        logger.log("Cancelled");
                         onClose();
                     },
                 },
             ],
         },
-        React.createElement(
-            Paragraph,
-            null,
-            "test",
-        ),
+        React.createElement(Paragraph, null, "test"),
+    );
+}
+
+function ExtensionItem({ ext }: { ext: Extension }) {
+    const React = getReact();
+    const [enabled, setEnabled] = React.useState(() =>
+        ExtensionManager.isEnabled(ext.name),
+    );
+
+    return React.createElement(
+        Card,
+        {
+            variant: "normal",
+            style: { padding: "12px 16px", marginBottom: "8px" },
+        },
+        React.createElement(FormSwitch, {
+            title: ext.name,
+            description: ext.description,
+            value: enabled,
+            onChange: (val: boolean) => {
+                ExtensionManager.toggle(ext.name);
+                setEnabled(val);
+            },
+            style: { padding: 0 },
+        }),
     );
 }
 
 export function KeaSettingsPanel(): any {
     const React = getReact();
-    if (!React) return null;
-
     const [blockTelemetry, setBlockTelemetry] = React.useState(true);
     const [developerMode, setDeveloperMode] = React.useState(true);
 
@@ -163,10 +185,28 @@ export function KeaSettingsPanel(): any {
                 { level: 3, style: { fontSize: "16px", marginBottom: "4px" } },
                 "native components",
             ),
+            React.createElement(Paragraph, null, "yea"),
+        ),
+
+        // extensions category
+        React.createElement(
+            "div",
+            { style: { marginBottom: "32px" } },
             React.createElement(
-                Paragraph,
-                null,
-                "yea",
+                Heading,
+                {
+                    level: 2,
+                    style: {
+                        fontSize: "20px",
+                        fontWeight: "600",
+                        color: "var(--header-primary, #ffffff)",
+                        marginBottom: "16px",
+                    },
+                },
+                "Extensions",
+            ),
+            Array.from(ExtensionManager.extensions.values()).map((ext) =>
+                React.createElement(ExtensionItem, { key: ext.name, ext }),
             ),
         ),
 
@@ -192,8 +232,7 @@ export function KeaSettingsPanel(): any {
                 { variant: "normal", style: { padding: "12px 16px" } },
                 React.createElement(FormSwitch, {
                     title: "block telemetry",
-                    description:
-                        "blocks discord's telemetry endpoints",
+                    description: "blocks discord's telemetry endpoints",
                     value: blockTelemetry,
                     onChange: setBlockTelemetry,
                     style: { padding: 0 },
@@ -226,8 +265,7 @@ export function KeaSettingsPanel(): any {
                 },
                 React.createElement(FormSwitch, {
                     title: "devtools",
-                    description:
-                        "wut",
+                    description: "wut",
                     value: developerMode,
                     onChange: setDeveloperMode,
                     style: { padding: 0 },
@@ -253,9 +291,7 @@ export function KeaSettingsPanel(): any {
                                     window as any
                                 ).Kea.MappingGenerator.downloadTypeDefinitions();
                             } else {
-                                console.warn(
-                                    "[kea] MappingGenerator not loaded yet",
-                                );
+                                logger.warn("MappingGenerator not loaded yet");
                             }
                         },
                     },

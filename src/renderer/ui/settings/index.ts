@@ -1,16 +1,17 @@
 /** biome-ignore-all lint/complexity/noUselessEscapeInRegex: ; */
 import { WebpackPatcher } from "../../patcher/webpack";
+import { Logger } from "../../utils/logger";
 import { WebpackFinder } from "../../webpack/finder";
 import { ReactComponents } from "../react";
 import { KeaSettingsPanel } from "./SettingsPanel";
+
+const logger = new Logger("SettingsPanel", "#10b981");
 
 export function KeaIcon(props: any): any {
     const React =
         ReactComponents.React ||
         (WebpackFinder.findByProps("createElement", "useState") as any) ||
         (window as any).React;
-
-    if (!React) return null;
 
     return React.createElement(
         "svg",
@@ -27,7 +28,7 @@ export function KeaIcon(props: any): any {
     );
 }
 
-let LayoutTypes = {
+const LayoutTypes = {
     SECTION: 1,
     SIDEBAR_ITEM: 2,
     PANEL: 3,
@@ -121,9 +122,8 @@ export class SettingsUI {
                 replace: "window.__kea_transformLayout($1)",
             },
         });
-        console.log(
-            "%c[kea] settings patched",
-            "color: #10b981; font-weight: bold;",
+        logger.log(
+            "Settings patched"
         );
     }
 }
