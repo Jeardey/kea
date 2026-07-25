@@ -1,4 +1,7 @@
+import { Logger } from "../utils/logger";
 import { WebpackFinder } from "./finder";
+
+const logger = new Logger("Generator", "#10b981");
 
 export interface DiscoveredStoreInfo {
 	id: string | number;
@@ -195,19 +198,18 @@ export class MappingGenerator {
 	}
 
 	public static logTypeDefinitions(): void {
-		console.log(MappingGenerator.generateAllStoreTypes());
+		logger.log(MappingGenerator.generateAllStoreTypes());
 	}
 
 	public static async copyTypeDefinitions(): Promise<void> {
 		const types = MappingGenerator.generateAllStoreTypes();
 		try {
 			await navigator.clipboard.writeText(types);
-			console.log(
-				"%c[kea] copied type definitions to clipboard",
-				"color: #10b981; font-weight: bold;"
+			logger.log(
+				"Copied type definitions to clipboard"
 			);
 		} catch {
-			console.log(types);
+			logger.log(types);
 		}
 	}
 
@@ -220,9 +222,8 @@ export class MappingGenerator {
 		a.download = filename;
 		a.click();
 		URL.revokeObjectURL(url);
-		console.log(
-			`%c[kea] downloaded type definitions: ${filename}`,
-			"color: #10b981; font-weight: bold;"
+		logger.log(
+			`Downloaded type definitions: ${filename}`
 		);
 	}
 }
