@@ -9,7 +9,7 @@ export class Logger {
         levelName: string,
     ): [string, ...string[]] {
         return [
-            `%c kea %c %c ${this.name} %c ${levelName}`,
+            `%c Kea %c %c ${this.name} %c ${levelName}`,
             "background: #3b82f6; color: white; font-weight: bold; border-radius: 4px; padding: 1px 4px;",
             "",
             `background: ${this.color}; color: white; font-weight: bold; border-radius: 4px; padding: 1px 4px;`,
