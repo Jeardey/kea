@@ -1,59 +1,89 @@
-// ./src/renderer/webpack/generator.ts
+import { Logger } from "../utils/logger";
 import { WebpackFinder } from "./finder";
+
+const logger = new Logger("Generator", "#10b981");
 
 export interface DiscoveredStoreInfo {
 	id: string | number;
-	storeName: string;
+	rawName: string;
+	cleanName: string;
 	properties: string[];
 	methods: string[];
+}
+
+export function sanitizeIdentifier(name: string): string {
+	if (!name) return "UnknownStore";
+
+	const cleaned = name
+		.replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ""))
+		.replace(/[^a-zA-Z0-9_$]/g, "");
+
+	const result = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+
+	if (!result || /^[0-9]/.test(result)) {
+		return `Store_${result}`;
+	}
+
+	return result;
 }
 
 export class MappingGenerator {
 	public static generateStoreMappings(): Record<string, DiscoveredStoreInfo> {
 		const wp = (window as any).__kea_wpRequire;
 		if (!wp) throw new Error("Webpack require hook not initialized!");
+
 		WebpackFinder.loadAll();
 
 		const storeMappings: Record<string, DiscoveredStoreInfo> = {};
+
 		const inspectObj = (obj: any, id: string | number) => {
 			if (!obj || (typeof obj !== "object" && typeof obj !== "function")) return;
 			if (obj.$$loader || obj.$$baseObject) return; // skip i18n translation proxies
 
 			try {
-				let storeName: string | null = null;
+				let rawName: string | null = null;
 				if (typeof obj.getName === "function") {
 					try {
-						storeName = obj.getName();
+						rawName = obj.getName();
 					} catch {}
 				}
 
-				if (typeof storeName === "string" && storeName.length > 0 && !storeMappings[storeName]) {
-					const proto = Object.getPrototypeOf(obj);
-					const keys = new Set([
-						...Object.keys(obj),
-						...(proto ? Object.getOwnPropertyNames(proto) : []),
-					]);
+				if (
+					typeof rawName === "string" &&
+					rawName.toLowerCase().endsWith("store") &&
+					rawName.toLowerCase() !== "store"
+				) {
+					const cleanName = sanitizeIdentifier(rawName);
 
-					const properties: string[] = [];
-					const methods: string[] = [];
+					if (!storeMappings[cleanName]) {
+						const proto = Object.getPrototypeOf(obj);
+						const keys = new Set([
+							...Object.keys(obj),
+							...(proto ? Object.getOwnPropertyNames(proto) : []),
+						]);
 
-					for (const key of keys) {
-						if (key === "constructor" || key.startsWith("_") || key.startsWith("$$")) continue;
-						try {
-							if (typeof obj[key] === "function") {
-								methods.push(key);
-							} else {
-								properties.push(key);
-							}
-						} catch {}
+						const properties: string[] = [];
+						const methods: string[] = [];
+
+						for (const key of keys) {
+							if (key === "constructor" || key.startsWith("_") || key.startsWith("$$")) continue;
+							try {
+								if (typeof obj[key] === "function") {
+									methods.push(key);
+								} else {
+									properties.push(key);
+								}
+							} catch {}
+						}
+
+						storeMappings[cleanName] = {
+							id,
+							rawName,
+							cleanName,
+							properties,
+							methods,
+						};
 					}
-
-					storeMappings[storeName] = {
-						id,
-						storeName,
-						properties,
-						methods,
-					};
 				}
 			} catch {}
 		};
@@ -68,7 +98,6 @@ export class MappingGenerator {
 				if (exp.default) inspectObj(exp.default, id);
 			} catch {}
 
-			// check every mangled key in module exports
 			try {
 				for (const key in exp) {
 					try {
@@ -83,11 +112,13 @@ export class MappingGenerator {
 	}
 
 	public static generateObjectType(interfaceName: string, obj: any): string {
+		const cleanInterfaceName = sanitizeIdentifier(interfaceName);
+
 		if (!obj || (typeof obj !== "object" && typeof obj !== "function")) {
-			return `export type ${interfaceName} = any;\n`;
+			return `export type ${cleanInterfaceName} = any;\n`;
 		}
 
-		const lines: string[] = [`export interface ${interfaceName} {`];
+		const lines: string[] = [`export interface ${cleanInterfaceName} {`];
 		const proto = Object.getPrototypeOf(obj);
 		const keys = new Set([
 			...Object.keys(obj),
@@ -129,9 +160,10 @@ export class MappingGenerator {
 		const dtsHeader = `// Auto-generated Kea Discord Types\n// Generated: ${new Date().toISOString()}\n\n`;
 		let dtsBody = "";
 
-		const sortedNames = Object.keys(mappings).sort();
-		for (const storeName of sortedNames) {
-			const info = mappings[storeName];
+		const sortedCleanNames = Object.keys(mappings).sort();
+
+		for (const cleanName of sortedCleanNames) {
+			const info = mappings[cleanName];
 			if (!info) continue;
 
 			try {
@@ -141,7 +173,7 @@ export class MappingGenerator {
 				let storeObj: any = null;
 				const check = (o: any) => {
 					try {
-						if (o && typeof o.getName === "function" && o.getName() === storeName) {
+						if (o && typeof o.getName === "function" && o.getName() === info.rawName) {
 							storeObj = o;
 						}
 					} catch {}
@@ -157,12 +189,28 @@ export class MappingGenerator {
 				}
 
 				if (storeObj) {
-					dtsBody += `${MappingGenerator.generateObjectType(storeName, storeObj)}\n`;
+					dtsBody += `${MappingGenerator.generateObjectType(cleanName, storeObj)}\n`;
 				}
 			} catch {}
 		}
 
 		return dtsHeader + dtsBody;
+	}
+
+	public static logTypeDefinitions(): void {
+		logger.log(MappingGenerator.generateAllStoreTypes());
+	}
+
+	public static async copyTypeDefinitions(): Promise<void> {
+		const types = MappingGenerator.generateAllStoreTypes();
+		try {
+			await navigator.clipboard.writeText(types);
+			logger.log(
+				"Copied type definitions to clipboard"
+			);
+		} catch {
+			logger.log(types);
+		}
 	}
 
 	public static downloadTypeDefinitions(filename: string = "discord-stores.d.ts"): void {
@@ -174,9 +222,8 @@ export class MappingGenerator {
 		a.download = filename;
 		a.click();
 		URL.revokeObjectURL(url);
-		console.log(
-			`%c[kea] downloaded type definitions: ${filename}`,
-			"color: #10b981; font-weight: bold;"
+		logger.log(
+			`Downloaded type definitions: ${filename}`
 		);
 	}
 }
