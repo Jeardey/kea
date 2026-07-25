@@ -1,126 +1,235 @@
+/** biome-ignore-all lint/complexity/noUselessEscapeInRegex: ; */
+if (
+    typeof window !== "undefined" &&
+    typeof (window as any).process === "undefined"
+) {
+    (window as any).process = { env: { NODE_ENV: "production" } };
+}
+
+import { ExtensionManager } from "@extensions/index";
+import { Logger } from "../renderer/utils/logger";
+import { Patcher } from "./patcher";
+import { WebpackPatcher } from "./patcher/webpack";
+import { SettingsUI } from "./ui/settings";
 import { WebpackFinder } from "./webpack/finder";
 import { MappingGenerator } from "./webpack/generator";
+import { Stores } from "./webpack/stores";
+
+const logger = new Logger("Renderer", "#3b82f6");
 
 declare global {
-	interface Window {
-		Kea?: {
-			WebpackFinder: typeof WebpackFinder;
-			MappingGenerator: typeof MappingGenerator;
-		};
-	}
+    interface Window {
+        Kea?: {
+            WebpackFinder: typeof WebpackFinder;
+            MappingGenerator: typeof MappingGenerator;
+            Stores: typeof Stores;
+            Patcher: typeof Patcher;
+            ExtensionManager: typeof ExtensionManager;
+        };
+    }
 }
 
 if (!(window as any).__kea_injected) {
-	(window as any).__kea_injected = true;
-	window.Kea = {
-		WebpackFinder,
-		MappingGenerator,
-	};
+    (window as any).__kea_injected = true;
+    window.Kea = {
+        WebpackFinder,
+        MappingGenerator,
+        Stores,
+        Patcher,
+        ExtensionManager,
+    };
 
-	function blockTelemetryLoudly() {
-		const origFetch = window.fetch;
-		window.fetch = async function (input: RequestInfo | URL, init?: RequestInit) {
-			try {
-				const url =
-					typeof input === "string"
-						? input
-						: input instanceof URL
-							? input.href
-							: (input as Request)?.url;
-				if (
-					url &&
-					(url.includes("/science") ||
-						url.includes("/beaker") ||
-						url.includes("/sentry_key") ||
-						url.includes("sentry.io"))
-				) {
-					return new Response(JSON.stringify({}), { status: 200 });
-				}
-			} catch (_e) {}
-			return origFetch.call(this, input, init);
-		};
+    // TODO: move all killSentry, blockTelemetryNetwork and etc functions to separate file
+    function killSentry(): void {
+        Object.defineProperty(Function.prototype, "d", {
+            configurable: true,
+            set(esmDeclareFunc) {
+                Object.defineProperty(this, "d", {
+                    value: esmDeclareFunc,
+                    configurable: true,
+                    enumerable: true,
+                    writable: true,
+                });
 
-		const origOpen = XMLHttpRequest.prototype.open;
-		(XMLHttpRequest.prototype as any).open = function (
-			this: XMLHttpRequest,
-			...args: any[]
-		) {
-			try {
-				const urlObj = args[1];
-				const url =
-					typeof urlObj === "string" ? urlObj : urlObj instanceof URL ? urlObj.href : urlObj;
-				if (
-					typeof url === "string" &&
-					(url.includes("/science") ||
-						url.includes("/beaker") ||
-						url.includes("/sentry_key") ||
-						url.includes("sentry.io"))
-				) {
-					(this as any).__kea_blocked = true;
-				}
-			} catch (_e) {}
-			return origOpen.apply(this, args as any);
-		};
+                const { stack } = new Error();
+                if (
+                    this.c != null ||
+                    !stack?.includes("http") ||
+                    !String(this).includes("exports:{}")
+                ) {
+                    return;
+                }
 
-		const origSend = XMLHttpRequest.prototype.send;
-		XMLHttpRequest.prototype.send = function (...args: any[]) {
-			if ((this as any).__kea_blocked) {
-				setTimeout(() => this.dispatchEvent(new Event("error")), 0);
-				return;
-			}
-			return origSend.apply(this, args as any);
-		};
-	}
+                const assetPath = stack.match(/http.+?(?=:\d+?:\d+?$)/m)?.[0];
+                if (!assetPath) return;
+                try {
+                    const srcRequest = new XMLHttpRequest();
+                    srcRequest.open("GET", assetPath, false);
+                    srcRequest.send();
 
-	blockTelemetryLoudly();
+                    if (srcRequest.responseText.includes(".DiscordSentry=")) {
+                        logger.log(
+                            "Disabling Sentry Webpack instance!",
+                            "font-weight: bold;",
+                            "color: inherit;",
+                        );
+                        Reflect.deleteProperty(Function.prototype, "d");
+                        Reflect.deleteProperty(window, "DiscordSentry");
+                        throw new Error("Sentry successfully disabled");
+                    }
+                } catch (e: any) {
+                    if (e.message === "Sentry successfully disabled") throw e;
+                }
+            },
+        });
 
-	/**
-	 * Waits until UserStore has received the user profile from CONNECTION_OPEN
-	 */
-	async function waitForCurrentUser(UserStore: any): Promise<any> {
-		const current = UserStore.getCurrentUser?.();
-		if (current) return current;
+        Object.defineProperty(window, "DiscordSentry", {
+            configurable: true,
+            set() {
+                Reflect.deleteProperty(Function.prototype, "d");
+                Reflect.deleteProperty(window, "DiscordSentry");
+            },
+        });
+    }
 
-		return new Promise((resolve) => {
-			const onChange = () => {
-				const user = UserStore.getCurrentUser?.();
-				if (user) {
-					UserStore.removeChangeListener?.(onChange);
-					resolve(user);
-				}
-			};
+    function blockTelemetryNetwork() {
+        const isTelemetryUrl = (url: string | undefined) =>
+            url &&
+            (url.includes("/science") ||
+                url.includes("/beaker") ||
+                url.includes("/metrics") ||
+                url.includes("/sentry_key"));
 
-			UserStore.addChangeListener?.(onChange);
+        const origFetch = window.fetch;
+        window.fetch = async function (
+            input: RequestInfo | URL,
+            init?: RequestInit,
+        ) {
+            try {
+                const url =
+                    typeof input === "string"
+                        ? input
+                        : input instanceof URL
+                          ? input.href
+                          : (input as Request)?.url;
 
-			// fallback
-			const interval = setInterval(() => {
-				const user = UserStore.getCurrentUser?.();
-				if (user) {
-					clearInterval(interval);
-					UserStore.removeChangeListener?.(onChange);
-					resolve(user);
-				}
-			}, 100);
-		});
-	}
+                if (isTelemetryUrl(url)) {
+                    return new Response(JSON.stringify({}), { status: 200 });
+                }
+            } catch (_e) {}
+            return origFetch.call(this, input, init);
+        };
 
-	async function bootKea() {
-		console.log("%c[kea] booting up...", "color: #3b82f6; font-size: 16px; font-weight: bold;");
+        const origOpen = XMLHttpRequest.prototype.open;
+        (XMLHttpRequest.prototype as any).open = function (
+            this: XMLHttpRequest,
+            ...args: any[]
+        ) {
+            try {
+                const urlObj = args[1];
+                const url =
+                    typeof urlObj === "string"
+                        ? urlObj
+                        : urlObj instanceof URL
+                          ? urlObj.href
+                          : urlObj;
 
-		await WebpackFinder.init();
+                if (isTelemetryUrl(url)) {
+                    (this as any).__kea_blocked = true;
+                }
+            } catch (_e) {}
+            return origOpen.apply(this, args as any);
+        };
 
-		console.log("%c[kea] waiting for UserStore...", "color: #6b7280;");
+        const origSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function (...args: any[]) {
+            if ((this as any).__kea_blocked) {
+                Object.defineProperty(this, "readyState", { value: 4 });
+                Object.defineProperty(this, "status", { value: 200 });
+                Object.defineProperty(this, "responseText", { value: "{}" });
+                setTimeout(() => {
+                    this.dispatchEvent(new Event("readystatechange"));
+                    this.dispatchEvent(new Event("load"));
+                }, 0);
+                return;
+            }
+            return origSend.apply(this, args as any);
+        };
+    }
 
-		const UserStore = await WebpackFinder.waitForStoreName("UserStore");
-		console.log("%c[kea] successfully mapped webpack!", "color: #10b981; font-weight: bold;");
+    // took it from vencord's notrack plugin, credit to them :3
+    function registerNoTrackPatches(): void {
+        WebpackPatcher.addPatch({
+            find: "AnalyticsActionHandlers.handle",
+            replacement: {
+                match: /\(0,\i\.analyticsTrackingStoreMaker\)/,
+                replace: "(()=>{})",
+            },
+        });
 
-		const currentUser = await waitForCurrentUser(UserStore);
-		console.log(
-			"%c[kea] logged in as:",
-			"color: #10b981; font-weight: bold;",
-			`${currentUser.username} (${currentUser.id})`
-		);
-	}
+        WebpackPatcher.addPatch({
+            find: ".METRICS_V2",
+            replacement: [
+                {
+                    match: /this\._intervalId=/,
+                    replace: "this._intervalId=void 0&&",
+                },
+                {
+                    match: /(?:increment|distribution)\(\i(?:,\i)?\){/g,
+                    replace: "$&return;",
+                },
+            ],
+        });
+        WebpackPatcher.addPatch({
+            find: ".BetterDiscord||null!=",
+            replacement: {
+                match: /(?=let \i=window;)/,
+                replace: "return false;",
+            },
+        });
+    }
 
-	bootKea();
+    async function hookFluxTrack(): Promise<void> {
+        const UserStore = (await WebpackFinder.waitForStoreName(
+            "UserStore",
+        )) as {
+            _dispatcher?: {
+                subscribe?: (
+                    event: string,
+                    callback: (event: unknown) => void,
+                ) => void;
+            };
+        };
+        const dispatcher = UserStore?._dispatcher;
+        if (dispatcher?.subscribe) {
+            dispatcher.subscribe("TRACK", (event: unknown) => {
+                const record = event as { resolve?: () => void };
+                record?.resolve?.();
+            });
+        }
+    }
+
+    killSentry();
+    blockTelemetryNetwork();
+    registerNoTrackPatches();
+    ExtensionManager.registerAll();
+
+    async function bootKea() {
+        logger.log("Booting up...");
+        try {
+            await SettingsUI.init();
+        } catch (e) {
+            logger.error("Failed to initialize SettingsUI:", e);
+        }
+        try {
+            await WebpackFinder.init();
+            logger.info("Successfully mapped webpack!");
+        } catch (e) {
+            logger.error("Failed to initialize WebpackFinder:", e);
+        }
+        ExtensionManager.init();
+        hookFluxTrack().catch(() => {});
+    }
+
+    bootKea();
 }

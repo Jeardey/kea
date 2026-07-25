@@ -1,0 +1,8 @@
+{
+  "name": "@kea/dtypes",
+  "description": "Discord Webpack store mappings and type definitions for Kea",
+  "author": "mesanets",
+  "license": "LGPL-3.0-or-later",
+  "version": "1.0.0",
+	"types": "src/index.d.ts"
+}
